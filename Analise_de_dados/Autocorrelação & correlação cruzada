@@ -1,0 +1,105 @@
+'''
+um arquivo .parquet cuja era nescessário 
+fazer uma análise de correlação da produção de energia durante o dia
+onde era recebido dados de potencia a cada 10 minutos, 
+assim foi feita uma analise de autocorrelação dentro de 144 dados(1 dia )
+outra correlação entre a produção de um dia médio de cada mês pegando 
+4320 dados(1 Mês) e dividindo por 30, posteriormente autocorrelacionando essas médias,
+e também foi feita uma correlação cruzada 
+de 3 diferentes dados desse arquivo(Blade1,Blade2 e blade 3)
+'''
+
+e correlacionado
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from statsmodels.graphics.tsaplots import plot_acf
+
+# Caminho do arquivo
+caminho_arquivo = "c:/Users/arthu/Desktop/UFLA/INICIAÇÃO/Pratica/part.2.parquet"
+DadosLRA_03 = pd.read_parquet(caminho_arquivo, engine="pyarrow")
+
+#vendos os nomes das variaveis que existem no arquivo
+VariaveisLRA_03 = DadosLRA_03.iloc[:, 2].unique()
+print(VariaveisLRA_03)
+
+# Separando variáveis desejadas para autocorrelação
+VariaveisDesejadasLRA_03 = ['P_ACT_Avg']
+DadosLRA_03_Autocorrelacao = DadosLRA_03[DadosLRA_03.iloc[:, 2].isin(VariaveisDesejadasLRA_03)].reset_index(drop=True)
+DadosLRA_03_Autocorrelacao.iloc[:,4] = DadosLRA_03_Autocorrelacao.iloc[:,4]/6
+print(DadosLRA_03_Autocorrelacao)
+
+
+
+#bloco que gera um dia de dado
+PrimeiroDia=DadosLRA_03_Autocorrelacao[:144]
+eixo_x=PrimeiroDia.iloc[:,1]
+eixo_y=PrimeiroDia.iloc[:,4]
+# Criando o gráfico de dispersão 
+plt.figure(figsize=(10, 5))
+plt.stem(eixo_x, eixo_y, label="Potência Gerada")  # 's' controla o tamanho dos pontos
+plt.xlabel("Dia 31/12/2022")
+plt.ylabel("Energia(kWh)")
+plt.title("Geração de Energia - Primeiros 144 Dados")
+plt.xticks(rotation=45)  # Para não sobrepor os rótulos no eixo X
+plt.legend()
+plt.grid(True)
+plt.show()
+#fim do bloco
+plot_acf(eixo_y, lags=143)
+plt.show()
+
+# Carregar o arquivo Parquet
+BladesLRA_03 = pd.read_parquet("c:/Users/arthu/Desktop/UFLA/INICIAÇÃO/Pratica/part.1.parquet", engine="pyarrow")
+
+# Filtrar os dados relevantes
+Blades1LRA_03 = BladesLRA_03[BladesLRA_03.iloc[:, 2] == 'BL1_ACT_Avg'].iloc[:, [4]].reset_index(drop=True)
+Blades2LRA_03 = BladesLRA_03[BladesLRA_03.iloc[:, 2] == 'BL2_ACT_Avg'].iloc[:, [4]].reset_index(drop=True)
+Blades3LRA_03 = BladesLRA_03[BladesLRA_03.iloc[:, 2] == 'BL3_ACT_Avg'].iloc[:, [4]].reset_index(drop=True)
+
+# Concatenar os dados lado a lado
+NumerosBlades = pd.concat([Blades1LRA_03, Blades2LRA_03, Blades3LRA_03], axis=1)
+
+# Renomear as colunas para facilitar a interpretação
+NumerosBlades.columns = ['Blade1', 'Blade2', 'Blade3']
+
+print(NumerosBlades)
+
+# Remover a primeira linha (se necessário)
+NumerosBlades = NumerosBlades.iloc[1:]
+
+# Calcular a correlação cruzada
+CorrelacaoCruzada = NumerosBlades.corr()
+print(CorrelacaoCruzada)
+#correlação entre a média dos meses
+Media_gerada_mensal = [0] * 12  # Lista para armazenar médias mensais
+Valores_mensal = [0] * 4282  # Lista para armazenar valores diários
+
+# Loop para calcular a média mensal
+for i in range(12):  # 12 meses
+    for j in range(4282):  # 4320 valores por mês
+        Valores_mensal[j] = DadosLRA_03_Autocorrelacao.iloc[j + i * 4282, 4]  # Coletando valores do DataFrame
+        
+    Media_gerada_mensal[i] = sum(Valores_mensal) / 30  # Média mensal (assumindo 30 dias no mês)
+    
+    Valores_mensal[:] = [0] * 4320  # Resetando os valores para o próximo mês
+
+print(Media_gerada_mensal)
+Media_gerada_mensal = pd.DataFrame({'Média mensal': Media_gerada_mensal})
+plt.stem(Media_gerada_mensal)
+plt.title("Média diaria de produção por mês")
+plt.xlabel("Mês")
+plt.ylabel("kWh")
+plt.grid(axis='y', linestyle='--', alpha=0.7)  # Grade no eixo Y
+# Gerando o gráfico da autocorrelação (ACF)
+sm.graphics.tsa.plot_acf(Media_gerada_mensal.iloc[:, 0], lags=11) # Plota até lag=11
+plt.title("Autocorrelação da Diaria Mensal Mensal")
+plt.xlabel("Lag")
+plt.ylabel("Autocorrelação")
+plt.grid()
+plt.show()
+
+    
+
+
+
