@@ -1,0 +1,57 @@
+'''
+Codigo que tem como função abrir uma aquivo parquet, 
+ler seu conteudo e com base no dado do tipo datatime, 
+ver um perfil médio de energia de cada hora do dia, 
+e gerar um grafico que mostra o pefil médio de produção de energia 
+de um dia tipico para cada mês do ano, resultando em um gráfico com 
+12 curvas mostrando o pefil medio de cada dia
+'''
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from statsmodels.graphics.tsaplots import plot_acf
+
+# Caminho do arquivo
+caminho_arquivo = ""
+DadosLRA_03 = pd.read_parquet(caminho_arquivo, engine="pyarrow")
+
+#vendos os nomes das variaveis que existem no arquivo
+VariaveisLRA_03 = DadosLRA_03.iloc[:, 2].unique()
+# Separando variáveis desejadas para autocorrelação
+VariaveisDesejadasLRA_03 = ['P_ACT_Avg']
+DadosLRA_03_Autocorrelacao = DadosLRA_03[DadosLRA_03.iloc[:, 2].isin(VariaveisDesejadasLRA_03)].reset_index(drop=True)
+DadosLRA_03_Autocorrelacao.iloc[:,4] = DadosLRA_03_Autocorrelacao.iloc[:,4]/6
+print(DadosLRA_03_Autocorrelacao['TIMESTAMP'].dtypes)
+
+
+DadosLRA_03_Autocorrelacao["hora"] = DadosLRA_03_Autocorrelacao.iloc[:, 1].dt.hour  
+DadosLRA_03_Autocorrelacao["dia"] = DadosLRA_03_Autocorrelacao.iloc[:, 1].dt.day    
+DadosLRA_03_Autocorrelacao["mes"] = DadosLRA_03_Autocorrelacao.iloc[:, 1].dt.month  
+
+# Criando um DataFrame vazio
+media_horaria = pd.DataFrame()
+
+
+for i in range(1, 13):
+    df_mes = DadosLRA_03_Autocorrelacao[DadosLRA_03_Autocorrelacao["mes"] == i]
+    
+    # Pegando a média por hora e armazenando na coluna do mês correspondente
+    media_horaria[i] = df_mes.groupby("hora")[df_mes.columns[4]].mean().values
+
+# Exibir resultado
+print(media_horaria)
+plt.figure(figsize=(10, 6))
+# Loop sobre as colunas de media_horaria (cada coluna representa um mês)
+for mes in media_horaria.columns:
+    plt.plot(media_horaria.index, media_horaria[mes], label=f"Mês {mes}")
+# Configurações do gráfico
+plt.xlabel("Hora do Dia")
+plt.ylabel("Valor Médio(kWh)")
+plt.title("Perfil Médio Diário por Mês")
+plt.legend(title="Mês")
+plt.grid(True)
+plt.xticks(range(0, 24))  # Marcar todas as horas no eixo x
+plt.show()
+print(media_horaria.corr())
+
